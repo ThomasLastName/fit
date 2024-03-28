@@ -46,6 +46,10 @@ def standard_train_step( model, data, loss_fn, optimizer, device, history, train
     return loss, history, vals_to_print
 
 #
+# ~~~ The kwargs that `fit` requires all metrics to accept
+required_kwargs = { "model", "data", "loss_fn", "optimizer", "device" } # ~~~ inside of `fit`, we'll call `metric( model=model, data=data, loss_fn=loss_fn, optimizer=optimizer, device=device )`
+
+#
 # ~~~ Standard training
 def fit(
         model,
@@ -158,9 +162,6 @@ def fit(
                 assert n_data_per_epoch_on_this_key==int(n_data_per_epoch_on_this_key), f"Why isn't the length of data for {key} divisible by the number of epochs!?"
                 history[key] += int(n_data_per_epoch_on_this_key)*[0]*epochs
                 my_warn(f"User-supplied history contains a key '{key}' which does not match the key of any user-supplied metric. The historical data has been extended by populating it with zeros.")
-    #
-    # ~~~ Validate that all metrics meet some assumptions upon which the present code is positted: namely, that metric keys are unique, and all keys support the `required_kwargs`
-    required_kwargs = { "model", "data", "loss_fn", "optimizer", "device" }   # ~~~ below, we'll call `metric( model=model, data=data, loss_fn=loss_fn, optimizer=optimizer, device=device )`
     #
     # ~~~ For all user-supplied metrics...
     for j,metrics in enumerate(( training_metrics, test_metrics, epochal_training_metrics, epochal_test_metrics )):
