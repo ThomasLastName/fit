@@ -1,4 +1,6 @@
 
+# ~~~ Tom Winckelman wrote this; maintained at https://github.com/ThomasLastName/fit
+
 import torch
 from tqdm import tqdm
 from time import time as now
@@ -16,7 +18,7 @@ except: # ~~~ however, if those functions are not available, then let their defi
 
 #
 # ~~~ A customizable sub-routine to be passed to the high level function `fit` defined below
-def standard_train_step( model, data, loss_fn, optimizer, device, history, training_metrics, just, sig ):
+def standard_train_step( model, data, loss_fn, optimizer, device, history, training_metrics, just, sig, penalty_term=None ):
     #
     # ~~~ Unpack data and move it to the desired device
     X = data[0].to(device)
@@ -24,7 +26,7 @@ def standard_train_step( model, data, loss_fn, optimizer, device, history, train
     #
     # ~~~ Enter training mode and compute prediction error
     model.train()           # ~~~ set the model to training mode (e.g., activate dropout)
-    loss = loss_fn(model(X),y)
+    loss = loss_fn(model(X),y) if (penalty_term is None) else loss_fn(model(X),y) + penalty_term(model)
     #
     # ~~~ Backpropagation
     loss.backward()         # ~~~ compute the gradient of loss
@@ -34,7 +36,7 @@ def standard_train_step( model, data, loss_fn, optimizer, device, history, train
     vals_to_print = { "loss": f"{loss.item():<{just}.{sig}f}" }  # ~~~ here we'll store the value of any user-specified metrices, as well as adding them to history
     if training_metrics is not None:
         for key in training_metrics:
-            value = training_metrics[key]( model=model, data=data, loss_fn=loss_fn, optimizer=optimizer )   # ~~~ pass the `required_kwargs` defined above
+            value = training_metrics[key]( model=model, data=data, loss_fn=loss_fn, optimizer=optimizer, device=device )   # ~~~ pass the `required_kwargs` defined above
             history[key].append(value)
             vals_to_print[key] = f"{value:<{just}.{sig}f}"
     #
@@ -62,7 +64,8 @@ def fit(
         just    = 6,    # ~~~ try to limit each printed value to this many characters
         sig     = 4,    # ~~~ try to print this many significant digits
         history = None,
-        halting_condition = None
+        halting_condition = None,
+        **kwargs_passed_to_train_step
     ):
     #
     # ~~~ First safety feature: assert that training_metrics, test_metrics, and epochal_metrics are each a dictionary (if not None)
@@ -89,6 +92,10 @@ def fit(
     # ~~~ Fourth safety feature: require test data in order to use testing metrics
     if test_data is None and ( (test_metrics is not None) or (epochal_test_metrics is not None) ):
         raise ValueError("test_metrics requires test_data")
+    #
+    # ~~~ A conveninence feature, allow the user to get the inteded result from specifying test_data without any test metrics
+    if (test_data is not None) and (test_metrics is None):
+        test_metrics = { "test loss": compute_loss }
     #
     # ~~~ Create (or contine) the dictionary called `history` to store the value of the loss, along with any user-supplied metrics
     no_history = (history is None)  # ~~~ whether or not we were given some priori history
@@ -153,7 +160,7 @@ def fit(
                 my_warn(f"User-supplied history contains a key '{key}' which does not match the key of any user-supplied metric. The historical data has been extended by populating it with zeros.")
     #
     # ~~~ Validate that all metrics meet some assumptions upon which the present code is positted: namely, that metric keys are unique, and all keys support the `required_kwargs`
-    required_kwargs = { "model", "data", "loss_fn", "optimizer" }   # ~~~ below, we'll call `metric( model=model, data=data, loss_fn=loss_fn, optimizer=optimizer )`
+    required_kwargs = { "model", "data", "loss_fn", "optimizer", "device" }   # ~~~ below, we'll call `metric( model=model, data=data, loss_fn=loss_fn, optimizer=optimizer, device=device )`
     #
     # ~~~ For all user-supplied metrics...
     for j,metrics in enumerate(( training_metrics, test_metrics, epochal_training_metrics, epochal_test_metrics )):
@@ -219,7 +226,8 @@ def fit(
                         device,
                         history,
                         {**training_metrics,**epochal_training_metrics} if (this_is_final_iteration_of_this_epoch and (epochal_training_metrics is not None)) else training_metrics,
-                        just, sig
+                        just, sig,
+                        **kwargs_passed_to_train_step
                     )
                 #
                 # ~~~ No matter what, always record this information (FYI: it is assumed that loss.item() was already added to vals_to_print during train_step)
@@ -230,7 +238,7 @@ def fit(
                 # ~~~ Regardless of verbosity level, still compute and record any test metrics (we may or may not print them, depending on whether or not verbose>=2)
                 if test_metrics is not None:
                     for key in test_metrics:
-                        value = test_metrics[key]( model=model, data=test_data, loss_fn=loss_fn, optimizer=optimizer )  # ~~~ pass the `required_kwargs` defined above
+                        value = test_metrics[key]( model=model, data=test_data, loss_fn=loss_fn, optimizer=optimizer, device=device )  # ~~~ pass the `required_kwargs` defined above
                         history[key].append(value)
                         vals_to_print[key] = f"{value:<{just}.{sig}f}"
                 #
@@ -254,7 +262,7 @@ def fit(
             # ~~~ At the end of the epoch, regardless of verbosity level, compute any user-specified epochal_test_metrics (the epochal_training_metrics were already computed, and added to both `history` and `vals_to_print` during train_step when `this_is_final_iteration_of_this_epoch`)
             if epochal_test_metrics is not None:
                 for key in epochal_test_metrics:
-                    value = epochal_test_metrics[key]( model=model, data=test_data, loss_fn=loss_fn, optimizer=optimizer )  # ~~~ pass the `required_kwargs` defined above
+                    value = epochal_test_metrics[key]( model=model, data=test_data, loss_fn=loss_fn, optimizer=optimizer, device=device )  # ~~~ pass the `required_kwargs` defined above
                     history[key].append(value)
                     vals_to_print[key] = f"{value:<{just}.{sig}f}"
             #
@@ -279,8 +287,17 @@ def fit(
     return history
 
 #
+# ~~~ A metric that just computes the loss on whatever data is supplied
+def compute_loss( model, data, loss_fn, optimizer, device ):
+    with torch.no_grad():
+        X,y = data
+        X = X.to(device)
+        y = y.to(device)
+        loss = loss_fn(model(X),y).item()
+    return loss
+#
 # ~~~ A metric for assessing the phenomenon of vanishing gradients
-def count_percent_nonzero_grads( model, data, loss_fn, optimizer, tol=1e-8 ):
+def count_percent_nonzero_grads( model, data, loss_fn, optimizer, device, tol=1e-8 ):
     #
     # ~~~ Count the number of gradiens, as well as the number of them which are zero (up to some tolerance)
     amount_nonzero = []
@@ -292,7 +309,6 @@ def count_percent_nonzero_grads( model, data, loss_fn, optimizer, tol=1e-8 ):
     # ~~~ Return only the percentage that were non-zero
     return sum(amount_nonzero)/sum(total_amount)
 
-
 #
 # ~~~ Metrics for computing the collective ell^p norm of all model parameters
 def compute_ell_p_norm_of_params( model, data, loss_fn, optimizer, p ):
@@ -300,11 +316,10 @@ def compute_ell_p_norm_of_params( model, data, loss_fn, optimizer, p ):
         norm_to_the_power_of_p = 0.
         for params in model.parameters():
             norm_to_the_power_of_p += torch.sum(params.abs()**p).item() if isinstance(p,(int,float)) else torch.max(params.abs()).item()
-    return norm_to_the_power_of_p**(1/p)
+    return norm_to_the_power_of_p**(1/p) if isinstance(p,(int,float)) else norm_to_the_power_of_p
 
 #
 # ~~~ The cases p = 1, 2, Inf
-compute_ell_1_norm_of_params     = lambda model, data, loss_fn, optimizer: compute_ell_p_norm_of_params( model, data, loss_fn, optimizer, p=1 )
-compute_ell_2_norm_of_params     = lambda model, data, loss_fn, optimizer: compute_ell_p_norm_of_params( model, data, loss_fn, optimizer, p=2 )
-compute_ell_infty_norm_of_params = lambda model, data, loss_fn, optimizer: compute_ell_p_norm_of_params( model, data, loss_fn, optimizer, p="inf" )
-
+compute_ell_1_norm_of_params     = lambda model, data, loss_fn, optimizer, device: compute_ell_p_norm_of_params( model, data, loss_fn, optimizer, p=1 )
+compute_ell_2_norm_of_params     = lambda model, data, loss_fn, optimizer, device: compute_ell_p_norm_of_params( model, data, loss_fn, optimizer, p=2 )
+compute_ell_infty_norm_of_params = lambda model, data, loss_fn, optimizer, device: compute_ell_p_norm_of_params( model, data, loss_fn, optimizer, p="inf" )
