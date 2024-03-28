@@ -76,6 +76,10 @@ def fit(
     for metrics in ( training_metrics, test_metrics, epochal_training_metrics, epochal_test_metrics ):
         assert isinstance(metrics,dict) or (metrics is None)
     #
+    # ~~~ A conveninence feature, allow the user to get the inteded result from specifying test_data without any test metrics
+    if (test_metrics is None) and (test_data is not None):
+        test_metrics = { "test loss":compute_loss }
+    #
     # ~~~ Second safety feature: assert that no two dictionaries use the same key name
     unique_metric_key_names = set()
     repeat_metric_key_names = list()
@@ -96,10 +100,6 @@ def fit(
     # ~~~ Fourth safety feature: require test data in order to use testing metrics
     if test_data is None and ( (test_metrics is not None) or (epochal_test_metrics is not None) ):
         raise ValueError("test_metrics requires test_data")
-    #
-    # ~~~ A conveninence feature, allow the user to get the inteded result from specifying test_data without any test metrics
-    if (test_data is not None) and (test_metrics is None):
-        test_metrics = { "test loss": compute_loss }
     #
     # ~~~ Create (or contine) the dictionary called `history` to store the value of the loss, along with any user-supplied metrics
     no_history = (history is None)  # ~~~ whether or not we were given some priori history
