@@ -54,7 +54,7 @@ def fit(
         optimizer,
         train_step  = standard_train_step,
         test_data   = None,
-        epochs      = 5,
+        epochs      = 2,
         verbose     = 2,
         training_metrics         = None,
         test_metrics             = None,
