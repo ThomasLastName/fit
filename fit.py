@@ -7,7 +7,7 @@ from time import time as now
 from math import prod
 from statistics import mean as avg
 
-try:    # ~~~ these functions help control the color of console output
+try:    # ~~~ these functions help control the color of console output; find at https://github.com/ThomasLastName/quality_of_life
     from quality_of_life.my_base_utils import support_for_progress_bars, my_warn
 except: # ~~~ however, if those functions are not available, then let their definitions be trivial (for compatibility)
     import warnings
