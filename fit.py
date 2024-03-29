@@ -5,6 +5,7 @@ import torch
 from tqdm import tqdm
 from time import time as now
 from math import prod
+from statistics import mean as avg
 
 try:    # ~~~ these functions help control the color of console output
     from quality_of_life.my_base_utils import support_for_progress_bars, my_warn
@@ -18,7 +19,7 @@ except: # ~~~ however, if those functions are not available, then let their defi
 
 #
 # ~~~ A customizable sub-routine to be passed to the high level function `fit` defined below
-def standard_train_step( model, data, loss_fn, optimizer, device, history, training_metrics, just, sig, penalty_term=None ):
+def standard_train_step( model, data, loss_fn, optimizer, device, history, training_metrics, just, sig, penalty_term=None, stride=None ):
     #
     # ~~~ Unpack data and move it to the desired device
     X = data[0].to(device)
@@ -38,6 +39,8 @@ def standard_train_step( model, data, loss_fn, optimizer, device, history, train
         for key in training_metrics:
             value = training_metrics[key]( model=model, data=data, loss_fn=loss_fn, optimizer=optimizer, device=device )   # ~~~ pass the `required_kwargs` defined above
             history[key].append(value)
+            if stride>1:    # ~~~ if desired: print, instead of the current value, a rolling average of the previous `stride` values
+                value = avg(history[key][-stride:])
             vals_to_print[key] = f"{value:<{just}.{sig}f}"
     #
     # ~~~ Zero out the gradients, exit training mode, and return all metrics
@@ -69,6 +72,7 @@ def fit(
         sig     = 4,    # ~~~ try to print this many significant digits
         history = None,
         halting_condition = None,
+        stride = None,  # ~~~ print to the console a rolloing average of the previous `stride` values (stride=1 prints the exact current value)
         **kwargs_passed_to_train_step
     ):
     #
@@ -76,9 +80,17 @@ def fit(
     for metrics in ( training_metrics, test_metrics, epochal_training_metrics, epochal_test_metrics ):
         assert isinstance(metrics,dict) or (metrics is None)
     #
-    # ~~~ A conveninence feature, allow the user to get the inteded result from specifying test_data without any test metrics
+    # ~~~ A conveninence feature: allow the user to get the inteded result from specifying test_data without any test metrics
     if (test_metrics is None) and (test_data is not None):
         test_metrics = { "test loss":compute_loss }
+    #
+    # ~~~ A conveninence feature: set a default stride length
+    if stride is None:
+        stride = 0.05*len(dataloader)
+    #
+    # ~~~ In any case, force the stride to be a positive integer
+    stride = int(stride)
+    assert stride>0
     #
     # ~~~ Second safety feature: assert that no two dictionaries use the same key name
     unique_metric_key_names = set()
@@ -220,14 +232,16 @@ def fit(
                 #
                 # ~~~ Do the actual training (FYI: recording of any user-specified training metrics is intended to occor within the body of train_step; their values will be added to history *and* stored by themselves in vals_to_print which has a number of keys equal 1 greater than the number of user-specified training metrics (if None, then this dictionary's only key will be loss), and each key has a scalar value; the intent is to pass pbar.set_postfix(vals_to_print); in other words, vals_to_print already includes any training_metrics, but the loss; any test_metrics still need to be added to it)
                 loss, history, vals_to_print = train_step(
-                        model,
-                        data,
-                        loss_fn,
-                        optimizer,
-                        device,
-                        history,
-                        {**training_metrics,**epochal_training_metrics} if (this_is_final_iteration_of_this_epoch and (epochal_training_metrics is not None)) else training_metrics,
-                        just, sig,
+                        model = model,
+                        data = data,
+                        loss_fn = loss_fn,
+                        optimizer = optimizer,
+                        device = device,
+                        history = history,
+                        training_metrics = {**training_metrics,**epochal_training_metrics} if (this_is_final_iteration_of_this_epoch and (epochal_training_metrics is not None)) else training_metrics,
+                        just = just,
+                        sig = sig,
+                        stride = stride,
                         **kwargs_passed_to_train_step
                     )
                 #
@@ -241,6 +255,8 @@ def fit(
                     for key in test_metrics:
                         value = test_metrics[key]( model=model, data=test_data, loss_fn=loss_fn, optimizer=optimizer, device=device )  # ~~~ pass the `required_kwargs` defined above
                         history[key].append(value)
+                        if stride>1:    # ~~~ if desired: print, instead of the current value, a rolling average of the previous `stride` values
+                            value = avg(history[key][-stride:])
                         vals_to_print[key] = f"{value:<{just}.{sig}f}"
                 #
                 # ~~~ Halt early if desired
@@ -296,6 +312,7 @@ def compute_loss( model, data, loss_fn, optimizer, device ):
         y = y.to(device)
         loss = loss_fn(model(X),y).item()
     return loss
+
 #
 # ~~~ A metric for assessing the phenomenon of vanishing gradients
 def count_percent_nonzero_grads( model, data, loss_fn, optimizer, device, tol=1e-8 ):
