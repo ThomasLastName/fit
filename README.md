@@ -12,6 +12,6 @@ The function `fit` defined in the file `fit.py` enables a convient and fast work
 
 ## How:
 
-The idea is: `fit( model, dataloader, loss_fn, optimizer, epochs=n )` trains that `model` for `n` epochs on that data (supplied in the form of the `dataloader`) according to that `optimizer` and `loss_fn`.
+The idea is: just call `fit( model, dataloader, loss_fn, optimizer, epochs=n )` which trains the `model` for `n` epochs on that data (supplied in the form of the `dataloader`) according to that `optimizer` and `loss_fn`.
 
 Until I set up documentation, **please see this [DEMO in Colab](https://colab.research.google.com/drive/1KQFv0z3JUV1C3ctORTvsvpPA-GJ_Ubur?usp=sharing)** and feel free to reach out to me at winckelman@tamu.edu with any questions.
