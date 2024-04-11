@@ -7,7 +7,7 @@ Training pipeline for pytorch models, inspired by the `fit()` method of keras mo
 
 ## Why:
 
-Using the function `fit` defined in the file `fit.py` enables a more convient and faster workflow of model prototyping. It purpose is analogous to [pytorch lightning]([url](https://lightning.ai/)) but its implementaiton is much simpler, resulting on one hand in an improved workflow for basic use cases, but on the other hand a lack of support for some some advanced use cases. In particular, `fit` tends to support custom model architectures, but may fail to support custom training logic.
+Using the function `fit` defined in the file `fit.py` enables a more convient and faster workflow of model prototyping. Its purpose is analogous to [pytorch lightning](https://lightning.ai/docs/pytorch/stable/starter/introduction.html) but its implementaiton is much simpler, resulting on one hand in an improved workflow for basic use cases, but on the other hand a lack of support for some some advanced use cases. As a rule of thumb, `fit` tends to support custom model architectures, but may fail to support custom training logic.
 
 
 ## How:
