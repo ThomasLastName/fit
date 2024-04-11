@@ -67,6 +67,7 @@ def fit(
         test_metrics             = None,
         epochal_training_metrics = None,
         epochal_test_metrics     = None,
+        auto_test = True,
         device  = ("cuda" if torch.cuda.is_available() else "cpu"), pbar_desc=None,
         just    = 6,    # ~~~ try to limit each printed value to this many characters
         sig     = 4,    # ~~~ try to print this many significant digits
@@ -81,12 +82,13 @@ def fit(
         assert isinstance(metrics,dict) or (metrics is None)
     #
     # ~~~ A conveninence feature: allow the user to get the inteded result from specifying test_data without any test metrics
-    if (test_metrics is None) and (epochal_test_metrics is None) and (test_data is not None):
-        my_warn("A test_data argument was supplied but no test_metrics nor epochal_test_metrics were supplied to `fit`, meaning that the test data will not be used whatsoever.")
+    if (test_metrics is None) and (epochal_test_metrics is None) and (test_data is not None) and auto_test:
+        my_warn('A test_data argument was supplied but no test_metrics nor epochal_test_metrics were supplied to `fit`. A "test loss" metric will be added.')
+        test_metrics = { "test loss" : compute_loss }
     #
     # ~~~ A conveninence feature: set a default stride length
     if stride is None:
-        stride = 0.05*len(dataloader)
+        stride = 0.05*len(dataloader)   # TODO min(stride,1)?
     #
     # ~~~ In any case, force the stride to be a positive integer
     stride = int(stride)
