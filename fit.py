@@ -2,7 +2,7 @@
 # ~~~ Tom Winckelman wrote this; maintained at https://github.com/ThomasLastName/fit
 
 import torch
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from time import time as now
 from math import prod
 from statistics import mean as avg
@@ -33,7 +33,7 @@ def standard_train_step( model, data, loss_fn, optimizer, device, history, train
     loss.backward()         # ~~~ compute the gradient of loss
     optimizer.step()        # ~~~ apply the gradient to the model parameters
     #
-    # ~~~ Record any user-specified metrics
+    # ~~~ Record any user-specified metrics (do not add "loss" to history now, as this will already be done within the body of `fit`)
     vals_to_print = { "loss": f"{loss.item():<{just}.{sig}f}" }  # ~~~ here we'll store the value of any user-specified metrices, as well as adding them to history
     if training_metrics is not None:
         for key in training_metrics:
@@ -81,8 +81,8 @@ def fit(
         assert isinstance(metrics,dict) or (metrics is None)
     #
     # ~~~ A conveninence feature: allow the user to get the inteded result from specifying test_data without any test metrics
-    if (test_metrics is None) and (test_data is not None):
-        test_metrics = { "test loss":compute_loss }
+    if (test_metrics is None) and (epochal_test_metrics is None) and (test_data is not None):
+        my_warn("A test_data argument was supplied but no test_metrics nor epochal_test_metrics were supplied to `fit`, meaning that the test data will not be used whatsoever.")
     #
     # ~~~ A conveninence feature: set a default stride length
     if stride is None:
@@ -102,6 +102,7 @@ def fit(
     if len(repeat_metric_key_names)==len(unique_metric_key_names):
         metric_key_names = repeat_metric_key_names
     else:
+        print(f"key names found: {repeat_metric_key_names}")
         raise ValueError("key conflict: metrics in different dictionaries are referred to by the same key")
     #
     # ~~~ Third safety feature: assert that "loss", "epoch", and "time" are not the keys for any user-specified metric
@@ -206,7 +207,7 @@ def fit(
                             suggestion = f", e.g., replace `def {metric_name}({vars})` by `def {metric_name}({vars},**kwargs)`" 
                             raise ValueError( requirement+" "+violation+" "+suggestion )
                 except:
-                    my_warn(f"Unable to read the arguments of metrics. Please, be aware that an error will occur if a metric does not suppport the arguments {str(required_kwargs)}.")
+                    my_warn(f"Unable to read the arguments of metric {metric_name}. Please, be aware that an error will occur if a metric does not suppport the arguments {str(required_kwargs)}.")
     #
     # ~~~ Train with a progress bar
     with support_for_progress_bars():
