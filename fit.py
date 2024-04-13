@@ -91,7 +91,7 @@ def fit(
         stride = 0.05*len(dataloader)   # TODO min(stride,1)?
     #
     # ~~~ In any case, force the stride to be a positive integer
-    stride = int(stride)
+    stride = max(int(stride),1)
     assert stride>0
     #
     # ~~~ Second safety feature: assert that no two dictionaries use the same key name
